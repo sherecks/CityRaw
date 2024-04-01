@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Anek+Devanagari:wght@800&family=Bebas+Neue&family=Orbitron:wght@900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./style.css"/>
+    <title>CityRaw</title>
+</head>
+
+<body>
+
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Martian+Mono:wght@500&display=swap');
+    </style>
+
+    <script type="module">
+        import * as THREE from './three.module.js';
+        import { OrbitControls } from './OrbitControls.js';
+        import { GLTFLoader } from './GLTFLoader.js';
+        import  Stats  from './stats.module.js';
+
+        import { isGraphicsCapabilitySufficient } from './graphicCapability.js'
+        import { createButton, createStyleButton } from './buttonUtils.js'
+        import { createSprite } from './spriteUtils.js';
+        import { createTextBox } from './textutils.js';
+        import { onDocumentMouseMove } from './raycasterUtils.js';
+
+        const stats = new Stats()
+        stats.showPanel(0) // 0: fps, 1: ms, 2: mb, 3+: custom
+        stats.dom.style.position = 'fixed';
+        stats.dom.style.top = '10px'; 
+        stats.dom.style.left = '1820px';
+
+        document.body.appendChild(stats.dom);
+
+        //Camera
+        const scene = new THREE.Scene();
+
+        scene.background = new THREE.Color( 0xA9A9A9 );
+
+        const camera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            100000
+        );
+        camera.position.set(1000, 400, 300);
+
+        // Lista de posições da câmera
+        const cameraPositions = [
+          new THREE.Vector3(1000, 400, 300),
+          new THREE.Vector3(2400, 500, 0),
+          new THREE.Vector3(100, 3000, 0),
+          new THREE.Vector3(50, 400, 0)
+        ];
+
+        let currentPositionIndex = 0;
+
+        const transitionDuration = 1000;
+
+        let transitionStartTime = null;
+
+        let cameraMovedManually = false;
+
+        // Função de interpolação suave
+        function easeInOutQuad(t) {
+          return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+        }
+
+        // Função para atualizar a posição da câmera suavemente
+        function updateCameraPosition() {
+          if (transitionStartTime === null) {
+              transitionStartTime = performance.now();
+          }
+
+          const elapsedTime = performance.now() - transitionStartTime;
+
+          const progress = Math.min(elapsedTime / transitionDuration, 1);
+          const smoothProgress = easeInOutQuad(progress);
+
+          let startPosition;
+          if (cameraMovedManually) {
+              // Use a posição atual da câmera como ponto de partida se a câmera foi movida manualmente
+              startPosition = camera.position.clone();
+          } else {
+              // Use a próxima posição na lista de posições predefinidas
+              startPosition = cameraPositions[currentPositionIndex];
+          }
+      
+          const endPositionIndex = (currentPositionIndex + 1) % cameraPositions.length;
+          const endPosition = cameraPositions[endPositionIndex];
+      
+          const newPosition = new THREE.Vector3();
+          newPosition.x = THREE.MathUtils.lerp(startPosition.x, endPosition.x, smoothProgress);
+          newPosition.y = THREE.MathUtils.lerp(startPosition.y, endPosition.y, smoothProgress);
+          newPosition.z = THREE.MathUtils.lerp(startPosition.z, endPosition.z, smoothProgress);
+      
+          camera.position.copy(newPosition);
+
+          if (progress === 1) {
+            currentPositionIndex = endPositionIndex;
+            transitionStartTime = null;
+            cameraMovedManually = false;
+          }
+
+          camera.updateProjectionMatrix();
+          renderer.render(scene, camera);
+
+          if (progress < 1) {
+              requestAnimationFrame(updateCameraPosition);
+          }
+        }
+
+        // Função para iniciar a transição de posição da câmera
+        function startCameraTransition() {
+            if (transitionStartTime === null) {
+                requestAnimationFrame(updateCameraPosition);
+            }
+        }
+
+        const canva = document.createElement('canvas');
+        const context = canva.getContext('2d');
+        const width = 50; // Largura do canvas
+        const height = 50; // Altura do canvas
+        canva.width = width;
+        canva.height = height;
+        context.fillStyle = 'black';
+        //context.fillRect(0, 0, width, height);
+
+        const buttonTexture = new THREE.CanvasTexture(canva);
+
+        const buttonMaterial = new THREE.SpriteMaterial({ map: buttonTexture });
+
+        // Configurar o raio para a interseção do mouse
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        document.addEventListener('mousemove', onDocumentMouseMove, false);
+
+        function render() {
+          raycaster.setFromCamera(mouse, camera);
+      
+          const intersects = raycaster.intersectObjects([buttonSprite, buttonSprite1], true);
+      
+          if (intersects.length > 0) {
+              document.body.style.cursor = 'pointer';
+          } else {
+              document.body.style.cursor = 'auto';
+          }
+      
+          renderer.render(scene, camera);
+        }
+
+        const buttonSprite = createSprite(buttonMaterial, [20, 100, 1], [0, 250, 0], scene);
+        const buttonSprite1 = createSprite(buttonMaterial, [20, 100, 1], [-1220, 650, 820], scene);
+        const buttonSprite2 = createSprite(buttonMaterial, [20, 100, 1], [-600, 250, 120], scene);
+        const buttonSprite3 = createSprite(buttonMaterial, [20, 100, 1], [1220, 250, -620], scene);
+
+        const buttonElement = createButton('TORANOMON', '50px', '-10px');
+        const buttonElement1 = createButton('Senkoguyama', '-50px', '-10px');
+        const buttonElement2 = createButton('National Institute of Natural Sciences', '-50px', '-10px');
+        const buttonElement3 = createButton('SHINBASHI', '-50px', '-10px');
+
+        const buttonCamera = createStyleButton('CHANGE VIEW', '10px', '100');
+
+        const buttonSprites = [buttonSprite, buttonSprite1, buttonSprite2, buttonSprite3]; 
+        const buttonElements = [buttonElement, buttonElement1, buttonElement2, buttonElement3];
+
+        function updateButtonPositions(buttonSprites, buttonElements) {
+          buttonSprites.forEach((buttonSprite, index) => {
+              // Mapeia a posição do sprite 3D para as coordenadas de tela
+              const buttonPosition = buttonSprite.position.clone().project(camera);
+              const x = (buttonPosition.x + 1) / 2 * window.innerWidth;
+              const y = -(buttonPosition.y - 1) / 2 * window.innerHeight;
+      
+              // Obtém as dimensões do botão HTML correspondente
+              const buttonElement = buttonElements[index];
+              const buttonWidth = buttonElement.offsetWidth;
+              const buttonHeight = buttonElement.offsetHeight;
+      
+              // Calcula as coordenadas ajustadas para centralizar o botão
+              const adjustedX = x - buttonWidth / 2;
+              const adjustedY = y - buttonHeight / 2;
+      
+              // Ajusta a posição do botão HTML para coincidir com a posição centralizada do sprite na tela
+              buttonElement.style.left = `${adjustedX}px`;
+              buttonElement.style.top = `${adjustedY}px`;
+
+          });
+        }
+      
+        updateButtonPositions(buttonSprites, buttonElements);
+
+        buttonElement.addEventListener('click', function() {
+            createTextBox('Distrito financeiro de Minato, Toquio', '80px', '10px');
+        });
+        
+        buttonElement1.addEventListener('click', function() {
+            createTextBox('Edifício Sengokuyama - Residencial/Comercial', '140px', '10px');
+        });
+
+        buttonElement2.addEventListener('click', function() {
+          createTextBox('http://www.nins.jp/', '200px', '10px');
+        });
+
+        buttonElement3.addEventListener('click', function() {
+          createTextBox('Distrito de Minato', '260px', '10px');
+        });
+
+        buttonCamera.addEventListener('click', function() {
+          startCameraTransition();
+        });
+      
+        function loadObjectTest(gltfPath, scaleFactor, position, initialRotation, scene) {
+          const loader = new GLTFLoader().setPath('/city/');
+          loader.load(gltfPath, (gltf) => {
+            const mesh = gltf.scene;
+        
+            mesh.scale.set(scaleFactor, scaleFactor, scaleFactor);
+            mesh.position.copy(position);
+        
+            scene.add(mesh);
+        
+          });
+        }
+
+        // Criar uma luz ambiente
+        const ambientLight = new THREE.AmbientLight(0x404040, 2);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(1, 1, 1);
+        scene.add(directionalLight);
+
+        //Renderer
+        let pixelRatio = window.devicePixelRatio
+        let AA = true
+        if (pixelRatio > 1) {
+          AA = false
+        }
+
+        const renderer = new THREE.WebGLRenderer({
+          antialias: AA,
+          powerPreference: "high-performance",
+        });
+        const controls = new OrbitControls(camera, renderer.domElement);
+        renderer.setSize(innerWidth, innerHeight);
+        camera.aspect = innerWidth / innerHeight;
+        camera.updateProjectionMatrix();
+        document.body.appendChild( renderer.domElement );
+
+        function onWindowResize() {
+          const newWidth = window.innerWidth;
+          const newHeight = window.innerHeight;
+          
+          // Atualize o tamanho do renderizador
+          renderer.setSize(newWidth, newHeight);
+        
+          // Atualize a proporção da câmera para corresponder às novas dimensões
+          camera.aspect = newWidth / newHeight;
+          camera.updateProjectionMatrix();
+
+          loadObjectBasedOnScreenSize();
+        }
+
+        window.addEventListener('resize', onWindowResize);
+
+        controls.addEventListener('change', function() {
+          cameraMovedManually = true;
+        });
+
+        // Screen Size!!!
+        function loadObjectBasedOnScreenSize() {
+          const screenSizeLimit = 768; // Define o limite de largura da tela para dispositivos móveis
+          
+          if (window.innerWidth < screenSizeLimit) {
+            scene.children.forEach((object) => {
+              if (object.type === 'Group') {
+                scene.remove(object);
+              }
+            });
+      
+            // Carregue o objeto desejado para dispositivos móveis
+            let loadedObject1 = loadObjectTest('Tokyo.glb', 1.8, new THREE.Vector3(2.96, -35, 0), 0, scene);
+          } else if (window.innerWidth >= screenSizeLimit) {
+            if (isGraphicsCapabilitySufficient()) {
+              scene.children.forEach((object) => {
+                if (object.type === 'Group') {
+                  scene.remove(object);
+                }
+              });
+        
+              let loadedObject = loadObjectTest('Tokyo.glb', 1.8, new THREE.Vector3(2.96, -35, 0), 0, scene);
+       
+            } else {
+              loadVideoFallback();
+            }
+          }
+        }
+        
+        window.addEventListener('load', loadObjectBasedOnScreenSize);
+        window.addEventListener('resize', loadObjectBasedOnScreenSize);
+
+        controls.enableRotate = true; 
+
+        controls.enableZoom = true; 
+        controls.enablePan = true;
+
+        controls.touches = {
+          ONE: THREE.TOUCH.ROTATE,
+          TWO: THREE.TOUCH.DOLLY_PAN
+        }
+
+        controls.listenToKeyEvents(window);
+
+        //Animate
+        function animate() {
+
+            controls.update();
+
+            stats.begin(); 
+            stats.end();
+
+            updateButtonPositions(buttonSprites, buttonElements);
+
+            render();
+
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+
+        }
+
+        animate();
+    </script>
+
+
+</body>
+
+
+</html>
